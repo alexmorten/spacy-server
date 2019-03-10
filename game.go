@@ -48,7 +48,7 @@ func (g *Game) Tick() {
 }
 
 func (g *Game) loop() {
-	ticker := time.NewTicker(16 * time.Millisecond)
+	ticker := time.NewTicker(20 * time.Millisecond)
 loop:
 	for {
 		select {

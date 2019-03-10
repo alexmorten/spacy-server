@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package server;
+
+message Vector {
+  double x = 1;
+  double y = 2;
+}
+
+message MoveAction {
+  Vector pos = 1;
+}
+
+message Action {
+  Credentials credentials = 1;
+  oneof type {
+    MoveAction move = 2;
+  }
+}
+
+message State {
+  bytes json_state = 1;
+}
+
+message Credentials {
+  string id = 1;
+}
+
+message Empty {}
+
+service SpacyServer {
+  rpc GetCredentials (Empty) returns (Credentials);
+  rpc GetUpdates (Credentials) returns (stream State);
+  rpc Act(Action) returns(Empty);
+}

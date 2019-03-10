@@ -1,34 +1,57 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
-	"net/http"
+	"net"
 
 	server "github.com/alexmorten/spacy-server"
-	"github.com/gorilla/websocket"
+	"google.golang.org/grpc"
 )
 
 var gamePool *server.GamePool
 
 func main() {
 	gamePool = server.NewGamePool()
-	http.HandleFunc("/", handler)
-	http.ListenAndServe(":4000", nil)
-}
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(_ *http.Request) bool {
-		return true
-	},
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
+	s := &Server{
+		Port: 4000,
 	}
-	gamePool.AddConnection(conn)
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	grpcServer := grpc.NewServer()
+	server.RegisterSpacyServerServer(grpcServer, s)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+//Server for grpc
+type Server struct {
+	Port int
+}
+
+//GetCredentials for grpc-web
+func (s *Server) GetCredentials(context.Context, *server.Empty) (*server.Credentials, error) {
+	return gamePool.NewCredentials(), nil
+}
+
+//GetUpdates for grpc-web
+func (s *Server) GetUpdates(credentials *server.Credentials, stream server.SpacyServer_GetUpdatesServer) error {
+	streamWrap, err := gamePool.AddConnection(credentials, stream)
+	if err != nil {
+		return err
+	}
+	<-streamWrap.ShutdownC
+	return nil
+}
+
+//Act for grpc-web
+func (s *Server) Act(ctx context.Context, action *server.Action) (*server.Empty, error) {
+	gamePool.HandleAction(action)
+	return &server.Empty{}, nil
 }

@@ -1,17 +1,14 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 // Player ...
 type Player struct {
 	ID              int `json:"id"`
-	conn            *websocket.Conn
+	stream          *Stream
 	game            *Game
 	Mothership      *Mothership  `json:"mothership"`
 	Ships           []*Ship      `json:"ships"`
@@ -37,9 +34,9 @@ type explosion struct {
 }
 
 // NewPlayer ...
-func NewPlayer(conn *websocket.Conn, game *Game, pos *Vector, id int) *Player {
+func NewPlayer(stream *Stream, game *Game, pos *Vector, id int) *Player {
 	p := &Player{
-		conn:            conn,
+		stream:          stream,
 		game:            game,
 		shutdownChannel: make(chan struct{}),
 		Ships:           []*Ship{},
@@ -58,9 +55,12 @@ func NewPlayer(conn *websocket.Conn, game *Game, pos *Vector, id int) *Player {
 
 //SendToPlayer Sends the byte Array to the player
 func (p *Player) SendToPlayer(byteArray []byte) {
-	err := p.conn.WriteMessage(websocket.TextMessage, byteArray)
+	err := p.stream.Send(&State{
+		JsonState: byteArray,
+	})
 	if err != nil {
 		fmt.Println(err)
+		p.game.Shutdown()
 	}
 }
 
@@ -140,31 +140,27 @@ func (p *Player) RemoveRocket(r *Rocket) {
 
 func (p *Player) readMessages() {
 	for {
-		_, byteArr, err := p.conn.ReadMessage()
-		if err != nil {
+		action := <-p.stream.ActionC
+		if action == nil {
 			p.game.Shutdown()
 			break
 		}
-		a := &action{}
-		json.Unmarshal(byteArr, a)
-		switch a.Type {
-		case "move":
-			move := &moveAction{}
-			json.Unmarshal(byteArr, move)
+		moveAction := action.GetMove()
+		if moveAction != nil {
 			p.mutex.Lock()
-
-			p.Mothership.TargetPos = move.Data
+			p.Mothership.TargetPos = moveAction.Pos
 			p.mutex.Unlock()
-		default:
-			fmt.Println(a.Type, " not supported")
+			continue
 		}
+		fmt.Println(action.String(), "not supported")
+
 	}
 	fmt.Println("Player ", p.ID, " disconnected")
 }
 
 //Shutdown player
 func (p *Player) Shutdown() {
-	p.conn.Close()
+	p.stream.ShutdownC <- struct{}{}
 }
 
 //OtherPlayers ...
@@ -177,6 +173,7 @@ func OtherPlayers(p *Player) (players []*Player) {
 	return
 }
 
+//RocketTargets of player
 func (p *Player) RocketTargets() []RocketTarget {
 	rocketTargets := []RocketTarget{}
 	for _, ship := range p.Ships {

@@ -1,0 +1,18 @@
+version: '3'
+services:
+  spacy-server:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    image: spacy-server
+    ports:
+      - "4000:4000"
+  envoy:
+    build:
+      context: ./
+      dockerfile: ./envoy.Dockerfile
+    image: envoy
+    ports:
+      - "8080:8080"
+    links:
+      - spacy-server

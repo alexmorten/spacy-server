@@ -4,12 +4,6 @@ import (
 	"math"
 )
 
-//Vector for points and movement
-type Vector struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
-
 //Copy a Vector
 func (v *Vector) Copy() *Vector {
 	return &Vector{
