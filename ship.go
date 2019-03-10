@@ -50,10 +50,11 @@ func (s *Ship) move() {
 	}
 
 	if s.moveRelativeTarget == nil || s.Pos.Dist(s.destination()) < 20 {
-		s.moveRelativeTarget = generateRandomRelativeTargetPos()
+		s.moveRelativeTarget = s.generateRandomRelativeTargetPos()
 	}
 
-	s.moveTo(*s.destination())
+	s.accelerateTo(*s.destination())
+	s.MoverWithAcceleration.move()
 }
 
 func (s *Ship) destination() *Vector {
@@ -77,7 +78,8 @@ func (s *Ship) DealDamage() {
 		s.player.RemoveShip(s)
 	}
 }
-func generateRandomRelativeTargetPos() *Vector {
+
+func (s *Ship) generateRandomRelativeTargetPos() *Vector {
 	v := &Vector{
 		X: rand.Float64()*2 - 1.0,
 		Y: rand.Float64()*2 - 1.0,

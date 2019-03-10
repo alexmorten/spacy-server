@@ -9,7 +9,7 @@ type MoverWithAcceleration struct {
 	Braking      float64
 }
 
-func (m *MoverWithAcceleration) moveTo(pos Vector) {
+func (m *MoverWithAcceleration) accelerateTo(pos Vector) {
 	force := (&pos).Sub(m.Pos)
 	if force.Length() > 0 {
 		force.ToLength(m.Acceleration)
@@ -19,7 +19,19 @@ func (m *MoverWithAcceleration) moveTo(pos Vector) {
 		if m.Vel.Length() > m.MaxVelocity {
 			m.Vel.ToLength(m.MaxVelocity)
 		}
-		m.Pos.Add(m.Vel)
 	}
+}
 
+func (m *MoverWithAcceleration) move() {
+	m.Pos.Add(m.Vel)
+}
+
+func (m *MoverWithAcceleration) breakWith(strength float64) {
+	if m.Vel.Length() > 0 {
+		brakingForce := m.Vel.Copy().Mul(-1).ToLength(strength)
+		m.Vel.Add(brakingForce)
+		if m.Vel.Length() > m.MaxVelocity {
+			m.Vel.ToLength(m.MaxVelocity)
+		}
+	}
 }

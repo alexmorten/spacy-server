@@ -1,22 +1,31 @@
 package server
 
+import (
+	"math/rand"
+)
+
 //MinerOreCapacity ...
 const MinerOreCapacity = 1
 
 //MinerDeliveryRange ...
-const MinerDeliveryRange = 20
+const MinerDeliveryRange = 40
 
 //MinerMiningRange ...
 const MinerMiningRange = 150
 
+//MinerRelativeTargetDist ...
+const MinerRelativeTargetDist = 30
+
 // Miner collects resource and brings them back to the mothership
 type Miner struct {
 	MoverWithAcceleration
-	player       *Player
-	ore          int
-	MiningTarget *Asteroid `json:"mining_target,omitempty"`
-	miningTimer  int
-	Health       int
+	player             *Player
+	ore                int
+	MiningTarget       *Asteroid `json:"mining_target,omitempty"`
+	miningTimer        int
+	Health             int
+	moveTarget         *Vector
+	moveRelativeTarget *Vector
 }
 
 // NewMiner ...
@@ -59,17 +68,37 @@ func (m *Miner) DealDamage() {
 	}
 }
 
+func (m *Miner) destination() *Vector {
+	return m.moveTarget.Copy().Add(m.moveRelativeTarget)
+}
+
 func (m *Miner) move() {
+	defer m.MoverWithAcceleration.move()
+
+	shouldBreak := false
 	if m.ore >= MinerOreCapacity {
-		m.moveTo(*m.player.Mothership.Pos)
-		return
+		m.moveTarget = m.player.Mothership.Pos
+	} else {
+		asteroid := m.closestAsteroid()
+		if asteroid != nil {
+			m.moveTarget = asteroid.Pos
+			distToAsteroid := m.Pos.Dist(asteroid.Pos)
+			if distToAsteroid < MinerMiningRange {
+				shouldBreak = true
+			}
+		} else {
+			m.moveTarget = m.player.Mothership.Pos
+		}
+
 	}
 
-	asteroid := m.closestAsteroid()
-	if asteroid != nil {
-		m.moveTo(*asteroid.Pos)
-	} else {
-		m.moveTo(*m.player.Mothership.Pos)
+	if m.moveRelativeTarget == nil || m.Pos.Dist(m.destination()) < 20 {
+		m.moveRelativeTarget = m.generateRandomRelativeTargetPos()
+	}
+
+	m.accelerateTo(*m.destination())
+	if shouldBreak {
+		m.breakWith(0.035)
 	}
 }
 
@@ -120,4 +149,12 @@ func (m *Miner) findMiningTarget() *Asteroid {
 		return asteroid
 	}
 	return nil
+}
+
+func (m *Miner) generateRandomRelativeTargetPos() *Vector {
+	v := &Vector{
+		X: rand.Float64()*2 - 1.0,
+		Y: rand.Float64()*2 - 1.0,
+	}
+	return v.ToLength(MinerRelativeTargetDist)
 }
